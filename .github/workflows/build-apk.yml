@@ -7,28 +7,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
-      - name: Extract Android project
+      - name: Accept Android licenses
         run: |
-          mkdir source
-          unzip jarvis-ai.zip -d source
+          SDKMANAGER=$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          yes | "$SDKMANAGER" --licenses
 
       - name: Install Android SDK
         run: |
-          sdkmanager "platforms;android-36" "platforms;android-36-ext1" "build-tools;36.0.0"
+          SDKMANAGER=$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          "$SDKMANAGER" "platforms;android-36" "platforms;android-36-ext1" "build-tools;36.0.0"
 
-      - name: Prepare signing key
+      - name: Extract Project
+        run: |
+          mkdir source
+          unzip -o jarvis-ai.zip -d source
+
+      - name: Create Debug Key
         run: |
           keytool -genkeypair -keystore source/debug.keystore \
             -storepass android -alias androiddebugkey \
@@ -36,9 +45,8 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000
 
       - name: Build APK
-        run: |
-          cd source
-          gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug
+        working-directory: source
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
